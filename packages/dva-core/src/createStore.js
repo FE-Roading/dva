@@ -4,6 +4,7 @@ import invariant from 'invariant';
 import win from 'global/window';
 import { returnSelf, isArray } from './utils';
 
+// 创建redux store，加入所有的middlewares和enhancers
 export default function({
   reducers,
   initialState,
@@ -19,6 +20,7 @@ export default function({
     `[app.start] extraEnhancers should be array, but got ${typeof extraEnhancers}`,
   );
 
+  // 获取所有的onAction钩子中间件
   const extraMiddlewares = plugin.get('onAction');
   const middlewares = setupMiddlewares([
     promiseMiddleware,

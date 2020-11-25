@@ -2,6 +2,13 @@ import warning from 'warning';
 import { isArray } from './utils';
 import { NAMESPACE_SEP } from './constants';
 
+/**
+ *对象所有的key格式化为：`${namespace}/${key}`
+ * @param {*} obj
+ * @param {*} namespace
+ * @param {*} type
+ * @returns
+ */
 function prefix(obj, namespace, type) {
   return Object.keys(obj).reduce((memo, key) => {
     warning(
@@ -14,6 +21,10 @@ function prefix(obj, namespace, type) {
   }, {});
 }
 
+/**
+ * 为model的effects、reducers的所有属性都添加具体的namespace前缀：namespace/reducer名，namespace/effect名
+ * @param {*} model
+ */
 export default function prefixNamespace(model) {
   const { namespace, reducers, effects } = model;
 

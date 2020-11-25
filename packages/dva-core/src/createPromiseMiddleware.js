@@ -1,5 +1,10 @@
 import { NAMESPACE_SEP } from './constants';
 
+/**
+ * Promise中间件封装：如果触发的action是effect，则创建promise运行，否则直接运行next
+ *
+ * @param {*} app
+ */
 export default function createPromiseMiddleware(app) {
   return () => next => action => {
     const { type } = action;
@@ -16,6 +21,12 @@ export default function createPromiseMiddleware(app) {
     }
   };
 
+  /**
+   * 判断是否是有effect： 先从type中找到namespace，再由namespace查找model，如果type在model.effects中则返回为true，否则均为false
+   *
+   * @param {*} type
+   * @returns
+   */
   function isEffect(type) {
     if (!type || typeof type !== 'string') return false;
     const [namespace] = type.split(NAMESPACE_SEP);

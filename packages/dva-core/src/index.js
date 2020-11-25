@@ -33,21 +33,26 @@ const dvaModel = {
 export function create(hooksAndOpts = {}, createOpts = {}) {
   const { initialReducer, setupApp = noop } = createOpts;
 
+  // 过滤出dva支持的hooks支持的配置，并添加到其hooks上
   const plugin = new Plugin();
   plugin.use(filterHooks(hooksAndOpts));
 
   const app = {
-    _models: [prefixNamespace({ ...dvaModel })],
+    _models: [prefixNamespace({ ...dvaModel })],  // 为effects，reducer所有属性名都添加前缀：namespace/reducer名，namespace/effect名
     _store: null,
     _plugin: plugin,
-    use: plugin.use.bind(plugin),
+    use: plugin.use.bind(plugin), // 绑定plugin。use的指向
     model,
     start,
   };
   return app;
 
   /**
-   * Register model before app is started.
+   * Register model before app is started. 启动前注册model
+   * 1、检测model配置是否符合规范
+   * 2、为effects，reducer所有属性名都添加前缀：namespace/reducer名，namespace/effect名
+   * 3、将添加好了的再添加到app._models中
+   * 4、返回添加了前缀的
    *
    * @param m {Object} model to register
    */
@@ -61,7 +66,9 @@ export function create(hooksAndOpts = {}, createOpts = {}) {
   }
 
   /**
-   * Inject model after app is started.
+   * Inject model after app is started.启动后注册model
+   * 1、model注册，并返回处理后的model
+   * 2、把 app._store.asyncReducers[m.namespace]
    *
    * @param createReducer
    * @param onError
@@ -72,6 +79,7 @@ export function create(hooksAndOpts = {}, createOpts = {}) {
     m = model(m);
 
     const store = app._store;
+    // 将namespace下的model所有reducers函数compose成为一个reducer
     store.asyncReducers[m.namespace] = getReducer(m.reducers, m.state, plugin._handleActions);
     store.replaceReducer(createReducer());
     if (m.effects) {
@@ -156,25 +164,31 @@ export function create(hooksAndOpts = {}, createOpts = {}) {
    * @returns void
    */
   function start() {
-    // Global error handler
+    // Global error handler：默认的全局错误处理钩子
     const onError = (err, extension) => {
       if (err) {
         if (typeof err === 'string') err = new Error(err);
         err.preventDefault = () => {
           err._dontReject = true;
         };
+        // 添加onError的hook，默认直接抛出错误
         plugin.apply('onError', err => {
           throw new Error(err.stack || err);
         })(err, app._store.dispatch, extension);
       }
     };
 
+    // saga中间件
     const sagaMiddleware = createSagaMiddleware();
+    // Promise中间件封装：如果触发的action是effect，则创建promise运行，否则直接运行next
     const promiseMiddleware = createPromiseMiddleware(app);
+    // 修改 返回了一个集合 saga函数的this指向为null
     app._getSaga = getSaga.bind(null);
 
     const sagas = [];
     const reducers = { ...initialReducer };
+    // 将所有model的reducer封装起来，放置到reducers[m.namespace]中；
+    // sagas放入所有的模块的effects
     for (const m of app._models) {
       reducers[m.namespace] = getReducer(m.reducers, m.state, plugin._handleActions);
       if (m.effects) {
@@ -200,10 +214,12 @@ export function create(hooksAndOpts = {}, createOpts = {}) {
       promiseMiddleware,
     });
 
+
     const store = app._store;
 
     // Extend store
     store.runSaga = sagaMiddleware.run;
+    // app.start 之后新增的动态 asyncReducers
     store.asyncReducers = {};
 
     // Execute listeners when state is changed
@@ -214,13 +230,13 @@ export function create(hooksAndOpts = {}, createOpts = {}) {
       });
     }
 
-    // Run sagas
+    // Run sagas：对所有model 的 effects 注册 saga 并运行
     sagas.forEach(sagaMiddleware.run);
 
     // Setup app
     setupApp(app);
 
-    // Run subscriptions
+    // Run subscriptions：取消订阅列表
     const unlisteners = {};
     for (const model of this._models) {
       if (model.subscriptions) {
@@ -235,7 +251,11 @@ export function create(hooksAndOpts = {}, createOpts = {}) {
 
     /**
      * Create global reducer for redux.
-     *
+     * 将以下四者的一个有机整合：
+     * 1. app.start 之前确定的静态 reducers
+     * 2. plugin.get('extraReducers')中获取的附加 reducers
+     * 3. app.start 之后新增的动态 asyncReducers
+     * 4. 以及通过 plugin.get('onReducer')获取的，将以上三者进行增强的 enhancer
      * @returns {Object}
      */
     function createReducer() {

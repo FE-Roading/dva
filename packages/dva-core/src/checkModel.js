@@ -1,6 +1,13 @@
 import invariant from 'invariant';
 import { isArray, isFunction, isPlainObject } from './utils';
 
+/**
+ * 检查model是否符合要求
+ *
+ * @export
+ * @param {*} model
+ * @param {*} existModels
+ */
 export default function checkModel(model, existModels) {
   const { namespace, reducers, effects, subscriptions } = model;
 
